@@ -4,6 +4,11 @@
   "main": "main.js",
   "private": true,
   "dependencies": {
+    "@fortawesome/fontawesome-svg-core": "^1.2.24",
+    "@fortawesome/free-brands-svg-icons": "^5.11.1",
+    "@fortawesome/free-solid-svg-icons": "^5.11.1",
+    "@fortawesome/react-fontawesome": "^0.1.4",
+    "bootstrap": "^4.3.1",
     "concurrently": "^4.1.2",
     "cross-env": "^6.0.0",
     "electron": "^6.0.10",
@@ -18,7 +23,7 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "ele": "electron .",
+    "ele": "nodemon --watch main.js --exec \"electron .\"",
     "dev": "concurrently \"cross-env BROWSER=none npm start\" \"wait-on http://localhost:3000 && npm run ele\""
   },
   "eslintConfig": {
@@ -35,5 +40,9 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "devtron": "^1.4.0",
+    "nodemon": "^1.19.2"
   }
 }

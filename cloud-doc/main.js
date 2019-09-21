@@ -10,6 +10,7 @@ app.on('ready', () => {
       nodeIntegration: true
     }
   })
+  mainWindow.webContents.openDevTools() // 打开开发者工具
 
   const urlLocation = isDev ? 'http://localhost:3000/' : 'dummyurl'
   mainWindow.loadURL(urlLocation)
