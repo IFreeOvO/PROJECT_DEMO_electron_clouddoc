@@ -15,6 +15,7 @@ const FileSearch = ({ title, onFileSearch }) => {
   const closeSearch = () => {
     setInputActive(false)
     setValue('')
+    onFileSearch('') // 重置搜索结果
   }
 
   useEffect(() => {

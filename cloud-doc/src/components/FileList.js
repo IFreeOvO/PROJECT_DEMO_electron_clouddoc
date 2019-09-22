@@ -12,20 +12,25 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
   const escPressed = useKeyPress(27) // 是否按了esc
   let node = useRef(null)
 
-  const endEdit = () => {
+  const endEdit = (editItem) => {
     setEditStatus(false)
     setValue('')
+
+    // 对于新建的文件,结束编辑状态时要改变isNew属性
+    if(editItem && editItem.isNew) {
+      onFileDelete(editItem.id)
+    }
   }
 
   useEffect(() => {
-    if (enterPressed && editStatus) {
-      const editItem = files.find(file => file.id === editStatus)
+    const editItem = files.find(file => file.id === editStatus)
+    if (enterPressed && editStatus && value.trim() !== '') {
       onSaveEdit(editItem.id, value)
       endEdit()
     }
 
     if (escPressed && editStatus) {
-      endEdit()
+      endEdit(editItem)
     }
   })
 
@@ -34,11 +39,20 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
       console.log('编辑状态', editStatus)
       // 输入框自动聚焦
       if (editStatus) {
-        node.current.focus()
+        node.current && node.current.focus()
       }
     },
     [editStatus]
   )
+
+  useEffect(() => {
+    const newFile = files.find(file => file.isNew)
+    console.log(newFile)
+    if(newFile) {
+      setEditStatus(newFile.id)
+      setValue(newFile.title)
+    }
+  }, [files])
 
   return (
     <ul className="list-group list-group-flush file-list">
@@ -47,7 +61,7 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
           className="list-group-item bg-light row d-flex align-items-center file-item mx-0"
           key={file.id}
         >
-          {file.id !== editStatus && (
+          {(file.id !== editStatus && !file.isNew) && (
             <>
               <span className="col-2">
                 <FontAwesomeIcon size="lg" icon={faMarkdown}></FontAwesomeIcon>
@@ -94,13 +108,14 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
             </>
           )}
 
-          {file.id === editStatus && (
+          {(file.id === editStatus || file.isNew) && (
             <>
               <input
                 ref={node}
                 type="text"
                 className="form-control col-10"
                 value={value}
+                placeholder="请输入文件名称"
                 onChange={e => {
                   setValue(e.target.value)
                 }}
@@ -108,7 +123,7 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
               <button
                 type="button"
                 className="icon-button col-2"
-                onClick={endEdit}
+                onClick={()=> {endEdit(file)}}
               >
                 <FontAwesomeIcon
                   size="lg"

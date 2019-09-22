@@ -1,6 +1,9 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { faPlus, faFileImport } from '@fortawesome/free-solid-svg-icons'
 import SimpleMDE from 'react-simplemde-editor'
+import uuidv4 from 'uuid/v4'
+import { flattenArr, objToArr } from './utils/helper'
+
 import './App.css'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import 'easymde/dist/easymde.min.css'
@@ -12,34 +15,144 @@ import BottomBtn from './components/BottomBtn'
 import TabList from './components/TabList'
 
 function App() {
+  const [files, setFiles] = useState(flattenArr(defaultFiles))
+  console.log(files)
+  const [activeFileID, setActiveFileID] = useState('')
+  const [openedFileIDs, setOpenedFileIDs] = useState([])
+  const [unsavedFileIDs, setUnsavedFileIDs] = useState([])
+  const [searchFiles, setSearchFiles] = useState([])
+  const filesArr = objToArr(files)
+  console.log(filesArr)
+
+  const activeFile = files[activeFileID]
+  const openedFiles = openedFileIDs.map(openID => {
+    return files[openID]
+  })
+  const fileListArr = searchFiles.length ? searchFiles : filesArr
+
+  // 打开md文件
+  const fileClick = fileID => {
+    // 设置打开文件的id
+    setActiveFileID(fileID)
+
+    if (!openedFileIDs.includes(fileID)) {
+      setOpenedFileIDs([...openedFileIDs, fileID])
+    }
+  }
+
+  // 点击tab标签
+  const tabClick = fileID => {
+    setActiveFileID(fileID)
+  }
+
+  // 关闭tab标签
+  const tabClose = id => {
+    // 过滤掉关闭的标签
+    const tabsWithout = openedFileIDs.filter(fileID => fileID !== id)
+    setOpenedFileIDs(tabsWithout)
+
+    // 关闭后激活第一个标签
+    if (tabsWithout.length) {
+      setActiveFileID(tabsWithout[0])
+    } else {
+      setActiveFileID('')
+    }
+  }
+
+  // 监听mde内容变化的回调
+  const fileChange = (id, value) => {
+    // 更新md内容
+    // const newFiles = files.map(file => {
+    //   if(file.id === id) {
+    //     file.body = value
+    //   }
+    //   return file
+    // })
+    // setFiles(newFiles)
+    const newFile = { ...files[id], body: value }
+    setFiles({ ...files, [id]: newFile })
+
+    // 更新unsavedIDs
+    if (!unsavedFileIDs.includes(id)) {
+      setUnsavedFileIDs([...unsavedFileIDs, id])
+    }
+  }
+
+  // 删除文件
+  const deleteFile = id => {
+    // const newFiles = files.filter(file => file.id !== id)
+    // setFiles(newFiles)
+    delete files[id]
+    setFiles(files)
+
+    // 关闭相应的以打开的tab
+    tabClose(id)
+  }
+
+  // 编辑文件名
+  const updateFileName = (id, title) => {
+    // const newFiles = files.map(file => {
+    //   if(file.id === id) {
+    //     file.title = title
+    //     file.isNew = false
+    //   }
+    //   return file
+    // })
+    // setFiles(newFiles)
+    const modifiedFile = { ...files[id], title, isNew: false }
+    setFiles({ ...files, [id]: modifiedFile })
+  }
+
+  // 搜索文件
+  const fileSearch = keyword => {
+    const newFiles = filesArr.filter(file => file.title.includes(keyword))
+    setSearchFiles(newFiles)
+  }
+
+  // 新建文件
+  const createNewFile = () => {
+    // const newID = uuidv4()
+    // const newFiles = [
+    //   ...files,
+    //   {
+    //     id: newID,
+    //     title: '',
+    //     body: '## 请输出 Markdown',
+    //     createdAt: new Date().getTime(),
+    //     isNew: true
+    //   }
+    // ]
+    // setFiles(newFiles)
+
+    const newID = uuidv4()
+    const newFile = {
+      id: newID,
+      title: '',
+      body: '## 请输出 Markdown',
+      createdAt: new Date().getTime(),
+      isNew: true
+    }
+    setFiles({...files, [newID]: newFile})
+  }
+
   return (
     <div className="App container-fluid px-0">
       <div className="row row no-gutters">
         <div className="col-3 bg-light left-panel">
-          <FileSearch
-            title="我的云文档"
-            onFileSearch={value => {
-              console.log(value)
-            }}
-          ></FileSearch>
+          <FileSearch title="我的云文档" onFileSearch={fileSearch}></FileSearch>
           <FileList
-            files={defaultFiles}
-            onFileClick={id => {
-              console.log(id)
-            }}
-            onFileDelete={id => {
-              console.log(id)
-            }}
-            onSaveEdit={(id, newValue) => {
-              console.log(id, newValue)
-            }}
+            files={fileListArr}
+            onFileClick={fileClick}
+            onFileDelete={deleteFile}
+            onSaveEdit={updateFileName}
           ></FileList>
-          <div className="row no-gutters">
+          <div className="row no-gutters button-group">
             <div className="col">
               <BottomBtn
                 text="新建"
                 colorClass="btn-primary"
                 icon={faPlus}
+                onBtnClick={createNewFile}
               ></BottomBtn>
             </div>
             <div className="col">
@@ -52,26 +165,30 @@ function App() {
           </div>
         </div>
         <div className="col-9 right-panel">
-          <TabList
-            files={defaultFiles}
-            activeId="1"
-            unsaveIds={['1', '2']}
-            onTabClick={id => {
-              console.log(id)
-            }}
-            onCloseTab={id => {
-              console.log('close', id)
-            }}
-          ></TabList>
-          <SimpleMDE
-            value={defaultFiles[1].body}
-            onChange={value => {
-              console.log(value)
-            }}
-            options={{
-              minHeight: '515px'
-            }}
-          ></SimpleMDE>
+          {!activeFile && (
+            <div className="start-page">选择或创建新的MarkDown文档</div>
+          )}
+          {activeFile && (
+            <>
+              <TabList
+                files={openedFiles}
+                activeId={activeFileID}
+                unsaveIds={unsavedFileIDs}
+                onTabClick={tabClick}
+                onCloseTab={tabClose}
+              ></TabList>
+              <SimpleMDE
+                key={activeFile && activeFile.id}
+                value={activeFile && activeFile.body}
+                onChange={value => {
+                  fileChange(activeFile.id, value)
+                }}
+                options={{
+                  minHeight: '515px'
+                }}
+              ></SimpleMDE>
+            </>
+          )}
         </div>
       </div>
     </div>
