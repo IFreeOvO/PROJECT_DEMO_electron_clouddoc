@@ -13,16 +13,15 @@ import FileList from './components/FileList'
 import defaultFiles from './utils/defaultFiles'
 import BottomBtn from './components/BottomBtn'
 import TabList from './components/TabList'
+const fs = window.require('fs') // renderer process赋予的nodejs能力
 
 function App() {
   const [files, setFiles] = useState(flattenArr(defaultFiles))
-  console.log(files)
   const [activeFileID, setActiveFileID] = useState('')
   const [openedFileIDs, setOpenedFileIDs] = useState([])
   const [unsavedFileIDs, setUnsavedFileIDs] = useState([])
   const [searchFiles, setSearchFiles] = useState([])
   const filesArr = objToArr(files)
-  console.log(filesArr)
 
   const activeFile = files[activeFileID]
   const openedFiles = openedFileIDs.map(openID => {
