@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
-import { faPlus, faFileImport } from '@fortawesome/free-solid-svg-icons'
+import { faPlus, faFileImport, faSave } from '@fortawesome/free-solid-svg-icons'
 import SimpleMDE from 'react-simplemde-editor'
 import uuidv4 from 'uuid/v4'
 import { flattenArr, objToArr } from './utils/helper'
+import fileHelper from './utils/fileHelper'
 
 import './App.css'
 import 'bootstrap/dist/css/bootstrap.min.css'
@@ -13,16 +14,40 @@ import FileList from './components/FileList'
 import defaultFiles from './utils/defaultFiles'
 import BottomBtn from './components/BottomBtn'
 import TabList from './components/TabList'
-const fs = window.require('fs') // renderer process赋予的nodejs能力
+
+// 导入node模块
+const { join } = window.require('path') // 直接取path的join方法
+const { remote } = window.require('electron')
+const Store = window.require('electron-store')
+
+const fileStore = new Store({ name: 'Files Data' }) // 存储在~/Library/ApplicationSupport/cloud-doc/Files Data.json里
+
+// 本地持久化,新建和重命名时需要
+const saveFilesToStore = files => {
+  // 不必存储所有信息，例如：isNew, body等
+  const fileStoreObj = objToArr(files).reduce((result, file) => {
+    const { id, path, title, createdAt } = file
+    result[id] = {
+      id,
+      path,
+      title,
+      createdAt
+    }
+    return result
+  }, {})
+  fileStore.set('file', fileStoreObj)
+  console.log('存储结构', fileStore.get('file'))
+}
 
 function App() {
-  const [files, setFiles] = useState(flattenArr(defaultFiles))
+  const [files, setFiles] = useState(fileStore.get('file') || {})
   const [activeFileID, setActiveFileID] = useState('')
   const [openedFileIDs, setOpenedFileIDs] = useState([])
   const [unsavedFileIDs, setUnsavedFileIDs] = useState([])
   const [searchFiles, setSearchFiles] = useState([])
-  const filesArr = objToArr(files)
 
+  const filesArr = objToArr(files)
+  const savedLocation = remote.app.getPath('documents') // 定义本地存储路径。文稿文件夹下
   const activeFile = files[activeFileID]
   const openedFiles = openedFileIDs.map(openID => {
     return files[openID]
@@ -33,6 +58,33 @@ function App() {
   const fileClick = fileID => {
     // 设置打开文件的id
     setActiveFileID(fileID)
+
+    // 从本地读取文件
+    const currentFile = files[fileID]
+    if (!currentFile.isLoaded) {
+      fileHelper
+        .readFile(currentFile.path)
+        .then(value => {
+          const newFile = { ...files[fileID], body: value, isLoaded: true }
+          setFiles({ ...files, [fileID]: newFile })
+        })
+        .catch(e => {
+          console.log(e)
+
+          delete files[fileID]
+          setFiles(files)
+          saveFilesToStore(files)
+          // 关闭相应的以打开的tab
+          tabClose(fileID)
+
+          remote.dialog.showMessageBoxSync(
+            {
+              type: 'error',
+              message: '该文件不存在'
+            }
+          )
+        })
+    }
 
     if (!openedFileIDs.includes(fileID)) {
       setOpenedFileIDs([...openedFileIDs, fileID])
@@ -61,13 +113,6 @@ function App() {
   // 监听mde内容变化的回调
   const fileChange = (id, value) => {
     // 更新md内容
-    // const newFiles = files.map(file => {
-    //   if(file.id === id) {
-    //     file.body = value
-    //   }
-    //   return file
-    // })
-    // setFiles(newFiles)
     const newFile = { ...files[id], body: value }
     setFiles({ ...files, [id]: newFile })
 
@@ -79,27 +124,56 @@ function App() {
 
   // 删除文件
   const deleteFile = id => {
-    // const newFiles = files.filter(file => file.id !== id)
-    // setFiles(newFiles)
-    delete files[id]
-    setFiles(files)
+    if(files[id].isNew) {
+      const { [id]: value, ...afterDelete} = files
+      setFiles(afterDelete)
 
-    // 关闭相应的以打开的tab
-    tabClose(id)
+      return
+    }
+
+    fileHelper.deleteFile(files[id].path).then(() => {
+      const { [id]: value, ...afterDelete} = files
+      setFiles(afterDelete)
+      saveFilesToStore(afterDelete)
+      // 关闭相应的以打开的tab
+      tabClose(id)
+    })
   }
 
   // 编辑文件名
-  const updateFileName = (id, title) => {
-    // const newFiles = files.map(file => {
-    //   if(file.id === id) {
-    //     file.title = title
-    //     file.isNew = false
-    //   }
-    //   return file
-    // })
-    // setFiles(newFiles)
-    const modifiedFile = { ...files[id], title, isNew: false }
-    setFiles({ ...files, [id]: modifiedFile })
+  const updateFileName = (id, title, isNew) => {
+    const newPath = join(savedLocation, `${title}.md`)
+    const modifiedFile = { ...files[id], title, isNew: false, path: newPath }
+    const newFiles = { ...files, [id]: modifiedFile }
+
+    console.log(files)
+    // 判断是否重名
+
+    console.log('首次进入', files[id].title, title)
+    if (files[id].title !== title) {
+      console.log('修改过')
+      for (let i = 0; i < filesArr.length; i++) {
+        const file = filesArr[i]
+
+        if (file.title === title) {
+          console.log('重名')
+          return
+        }
+      }
+    }
+
+    if (isNew) {
+      fileHelper.writeFile(newPath, files[id].body).then(() => {
+        setFiles(newFiles)
+        saveFilesToStore(newFiles)
+      })
+    } else {
+      const oldPath = join(savedLocation, `${files[id].title}.md`)
+      fileHelper.renameFile(oldPath, newPath).then(() => {
+        setFiles(newFiles)
+        saveFilesToStore(newFiles)
+      })
+    }
   }
 
   // 搜索文件
@@ -110,19 +184,6 @@ function App() {
 
   // 新建文件
   const createNewFile = () => {
-    // const newID = uuidv4()
-    // const newFiles = [
-    //   ...files,
-    //   {
-    //     id: newID,
-    //     title: '',
-    //     body: '## 请输出 Markdown',
-    //     createdAt: new Date().getTime(),
-    //     isNew: true
-    //   }
-    // ]
-    // setFiles(newFiles)
-
     const newID = uuidv4()
     const newFile = {
       id: newID,
@@ -131,7 +192,16 @@ function App() {
       createdAt: new Date().getTime(),
       isNew: true
     }
-    setFiles({...files, [newID]: newFile})
+    setFiles({ ...files, [newID]: newFile })
+  }
+
+  // 保存文件
+  const saveCurrentFile = () => {
+    fileHelper
+      .writeFile(join(savedLocation, `${activeFile.title}.md`), activeFile.body)
+      .then(() => {
+        setUnsavedFileIDs(unsavedFileIDs.filter(id => id !== activeFile.id))
+      })
   }
 
   return (
@@ -186,6 +256,12 @@ function App() {
                   minHeight: '515px'
                 }}
               ></SimpleMDE>
+              <BottomBtn
+                text="保存"
+                colorClass="btn-success"
+                icon={faSave}
+                onBtnClick={saveCurrentFile}
+              ></BottomBtn>
             </>
           )}
         </div>

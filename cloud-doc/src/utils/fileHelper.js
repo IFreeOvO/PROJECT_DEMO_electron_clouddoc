@@ -1,5 +1,4 @@
-const fs = require('fs').promises
-const path = require('path')
+const fs = window.require('fs').promises // renderer process赋予的nodejs能力
 
 const fileHelper = {
   readFile: (path) => {
@@ -18,9 +17,11 @@ const fileHelper = {
   }
 }
 
-const testPath = path.join(__dirname, 'helper.js')
-const testWritePath = path.join(__dirname, 'hello.md')
-const renamePath = path.join(__dirname, 'rename.md')
+export default fileHelper
+
+// const testPath = path.join(__dirname, 'helper.js')
+// const testWritePath = path.join(__dirname, 'hello.md')
+// const renamePath = path.join(__dirname, 'rename.md')
 // fileHelper.readFile(testPath).then((data) => {
 //   console.log(data)
 // })
@@ -33,6 +34,6 @@ const renamePath = path.join(__dirname, 'rename.md')
 //   console.log('重命名成功')
 // })
 
-fileHelper.deleteFile(renamePath).then(() => {
-  console.log('删除成功')
-})
+// fileHelper.deleteFile(renamePath).then(() => {
+//   console.log('删除成功')
+// })

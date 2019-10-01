@@ -25,7 +25,7 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
   useEffect(() => {
     const editItem = files.find(file => file.id === editStatus)
     if (enterPressed && editStatus && value.trim() !== '') {
-      onSaveEdit(editItem.id, value)
+      onSaveEdit(editItem.id, value, editItem.isNew)
       endEdit()
     }
 
@@ -36,7 +36,6 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
 
   useEffect(
     () => {
-      console.log('编辑状态', editStatus)
       // 输入框自动聚焦
       if (editStatus) {
         node.current && node.current.focus()
@@ -47,7 +46,7 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
 
   useEffect(() => {
     const newFile = files.find(file => file.isNew)
-    console.log(newFile)
+   
     if(newFile) {
       setEditStatus(newFile.id)
       setValue(newFile.title)
@@ -79,9 +78,7 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
                 type="button"
                 className="icon-button col-2"
                 onClick={() => {
-                  console.log('点击', file.id)
                   setEditStatus(file.id)
-                  console.log('点击 ---', editStatus)
                   setValue(file.title)
                 }}
               >
