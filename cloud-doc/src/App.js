@@ -17,10 +17,10 @@ import useIpcRenderer from './hooks/useIpcRenderer'
 
 // 导入node模块
 const { join, basename, extname, dirname } = window.require('path') // 直接取path的join方法
-const { remote,ipcRenderer } = window.require('electron')
+const { remote, ipcRenderer } = window.require('electron')
 const Store = window.require('electron-store')
-
 const fileStore = new Store({ name: 'Files Data' }) // 存储在~/Library/ApplicationSupport/cloud-doc/Files Data.json里
+const settingsStore = new Store({ name: 'Settings' })
 
 // 本地持久化,新建和重命名时需要
 const saveFilesToStore = files => {
@@ -47,7 +47,8 @@ function App() {
   const [searchFiles, setSearchFiles] = useState([])
 
   const filesArr = objToArr(files)
-  const savedLocation = remote.app.getPath('documents') // 定义本地存储路径。文稿文件夹下
+  const savedLocation =
+    settingsStore.get('savedFileLocation') || remote.app.getPath('documents') // 定义本地存储路径。文稿文件夹下
   const activeFile = files[activeFileID]
   const openedFiles = openedFileIDs.map(openID => {
     return files[openID]
@@ -110,7 +111,7 @@ function App() {
 
   // 监听mde内容变化的回调
   const fileChange = (id, value) => {
-    if(value === files[id].body) {
+    if (value === files[id].body) {
       return
     }
     // 更新md内容
@@ -263,7 +264,7 @@ function App() {
   useIpcRenderer({
     'create-new-file': createNewFile,
     'import-file': importFiles,
-    'save-edit-file': saveCurrentFile,
+    'save-edit-file': saveCurrentFile
   })
 
   return (
