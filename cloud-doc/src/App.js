@@ -11,12 +11,11 @@ import 'easymde/dist/easymde.min.css'
 
 import FileSearch from './components/FileSearch'
 import FileList from './components/FileList'
-import defaultFiles from './utils/defaultFiles'
 import BottomBtn from './components/BottomBtn'
 import TabList from './components/TabList'
 
 // 导入node模块
-const { join } = window.require('path') // 直接取path的join方法
+const { join, basename, extname, dirname } = window.require('path') // 直接取path的join方法
 const { remote } = window.require('electron')
 const Store = window.require('electron-store')
 
@@ -142,7 +141,10 @@ function App() {
 
   // 编辑文件名
   const updateFileName = (id, title, isNew) => {
-    const newPath = join(savedLocation, `${title}.md`)
+    // 新文件和旧文件路径不一样
+    // 旧文件的路径应该是旧路径+旧标题
+    const newPath = isNew ? join(savedLocation, `${title}.md`)
+                          : join(dirname(files[id].path), `${title}.md`)
     const modifiedFile = { ...files[id], title, isNew: false, path: newPath }
     const newFiles = { ...files, [id]: modifiedFile }
 
@@ -168,7 +170,7 @@ function App() {
         saveFilesToStore(newFiles)
       })
     } else {
-      const oldPath = join(savedLocation, `${files[id].title}.md`)
+      const oldPath = files[id].path
       fileHelper.renameFile(oldPath, newPath).then(() => {
         setFiles(newFiles)
         saveFilesToStore(newFiles)
@@ -198,10 +200,61 @@ function App() {
   // 保存文件
   const saveCurrentFile = () => {
     fileHelper
-      .writeFile(join(savedLocation, `${activeFile.title}.md`), activeFile.body)
+      .writeFile(activeFile.path)
       .then(() => {
         setUnsavedFileIDs(unsavedFileIDs.filter(id => id !== activeFile.id))
+        remote.dialog.showMessageBox({
+          type: 'info',
+          title: `保存成功！`,
+          message: `保存成功！`
+        })
       })
+  }
+
+  // 导入文件
+  const importFiles = () => {
+    remote.dialog.showOpenDialog({
+      title: '选择导入的 Markdown 文件',
+      properties: ['openFile','multiSelections'],
+      filters: [
+        {name: 'Markdown files', extensions: ['md']}
+      ]
+    }, (paths) => {
+      console.log(paths);
+      if(Array.isArray(paths)) {
+        // 过滤掉已经添加的文件
+        const filteredPaths = paths.filter(path => {
+          const alreadyAdded = Object.values(files).find(file => {
+            return file.path === path 
+          })
+          return !alreadyAdded
+        })
+
+        // 将路径数组进行扩展
+        // [{id: '', path: '', title: ''}, ..., {}]
+        const importFilesArr = filteredPaths.map(path => {
+          return {
+            id: uuidv4(),
+            title: basename(path, extname(path)),
+            path
+          }
+        })
+        // console.log(importFilesArr);
+
+        // 对文件数组进行展开
+        const newFiles = {...files, ...flattenArr(importFilesArr)}
+        // console.log(newFiles);
+        setFiles(newFiles)
+        saveFilesToStore(newFiles)
+        if(importFilesArr.length > 0) {
+          remote.dialog.showMessageBox({
+            type: 'info',
+            title: `成功导入了${importFilesArr.length}个文件！`,
+            message: `成功导入了${importFilesArr.length}个文件！`
+          })
+        }
+      }
+    })
   }
 
   return (
@@ -229,6 +282,7 @@ function App() {
                 text="导入"
                 colorClass="btn-success"
                 icon={faFileImport}
+                onBtnClick={importFiles}
               ></BottomBtn>
             </div>
           </div>
