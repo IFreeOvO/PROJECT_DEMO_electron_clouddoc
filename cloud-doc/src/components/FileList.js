@@ -4,6 +4,12 @@ import { faEdit, faTrash, faTimes } from '@fortawesome/free-solid-svg-icons'
 import { faMarkdown } from '@fortawesome/free-brands-svg-icons'
 import PropTypes from 'prop-types'
 import useKeyPress from '../hooks/useKeyPress'
+import useContextMenu from '../hooks/useContextMenu'
+import { getParentNode } from '../utils/helper'
+
+// 加载node模块
+const { remote } = window.require('electron')
+const { Menu, MenuItem } = remote
 
 const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
   const [editStatus, setEditStatus] = useState(false)
@@ -12,15 +18,53 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
   const escPressed = useKeyPress(27) // 是否按了esc
   let node = useRef(null)
 
-  const endEdit = (editItem) => {
+  const endEdit = editItem => {
     setEditStatus(false)
     setValue('')
 
     // 对于新建的文件,结束编辑状态时要改变isNew属性
-    if(editItem && editItem.isNew) {
+    if (editItem && editItem.isNew) {
       onFileDelete(editItem.id)
     }
   }
+
+  const clickedItem = useContextMenu(
+    [
+      {
+        label: '打开',
+        click: () => {
+          const parentElement = getParentNode(clickedItem.current, 'file-item')
+          if (parentElement) {
+            onFileClick(parentElement.dataset.id)
+          }
+          // console.dir(parentElement)
+        }
+      },
+      {
+        label: '重命名',
+        click: () => {
+          const parentElement = getParentNode(clickedItem.current, 'file-item')
+          if (parentElement) {
+            setEditStatus(parentElement.dataset.id)
+            setValue(parentElement.dataset.title)
+          }
+          // console.dir(parentElement)
+        }
+      },
+      {
+        label: '删除',
+        click: () => {
+          const parentElement = getParentNode(clickedItem.current, 'file-item')
+          if (parentElement) {
+            onFileDelete(parentElement.dataset.id)
+          }
+          // console.dir(parentElement)
+        }
+      }
+    ],
+    '.file-list',
+    [files]
+  )
 
   useEffect(() => {
     const editItem = files.find(file => file.id === editStatus)
@@ -34,20 +78,17 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
     }
   })
 
-  useEffect(
-    () => {
-      // 输入框自动聚焦
-      if (editStatus) {
-        node.current && node.current.focus()
-      }
-    },
-    [editStatus]
-  )
+  useEffect(() => {
+    // 输入框自动聚焦
+    if (editStatus) {
+      node.current && node.current.focus()
+    }
+  }, [editStatus])
 
   useEffect(() => {
     const newFile = files.find(file => file.isNew)
-   
-    if(newFile) {
+
+    if (newFile) {
       setEditStatus(newFile.id)
       setValue(newFile.title)
     }
@@ -59,8 +100,10 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
         <li
           className="list-group-item bg-light row d-flex align-items-center file-item mx-0"
           key={file.id}
+          data-id={file.id}
+          data-title={file.title}
         >
-          {(file.id !== editStatus && !file.isNew) && (
+          {file.id !== editStatus && !file.isNew && (
             <>
               <span className="col-2">
                 <FontAwesomeIcon size="lg" icon={faMarkdown}></FontAwesomeIcon>
@@ -120,7 +163,9 @@ const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
               <button
                 type="button"
                 className="icon-button col-2"
-                onClick={()=> {endEdit(file)}}
+                onClick={() => {
+                  endEdit(file)
+                }}
               >
                 <FontAwesomeIcon
                   size="lg"
