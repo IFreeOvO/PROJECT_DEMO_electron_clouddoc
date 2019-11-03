@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { faPlus, faFileImport, faSave } from '@fortawesome/free-solid-svg-icons'
 import SimpleMDE from 'react-simplemde-editor'
 import uuidv4 from 'uuid/v4'
@@ -13,10 +13,11 @@ import FileSearch from './components/FileSearch'
 import FileList from './components/FileList'
 import BottomBtn from './components/BottomBtn'
 import TabList from './components/TabList'
+import useIpcRenderer from './hooks/useIpcRenderer'
 
 // 导入node模块
 const { join, basename, extname, dirname } = window.require('path') // 直接取path的join方法
-const { remote } = window.require('electron')
+const { remote,ipcRenderer } = window.require('electron')
 const Store = window.require('electron-store')
 
 const fileStore = new Store({ name: 'Files Data' }) // 存储在~/Library/ApplicationSupport/cloud-doc/Files Data.json里
@@ -76,12 +77,10 @@ function App() {
           // 关闭相应的以打开的tab
           tabClose(fileID)
 
-          remote.dialog.showMessageBoxSync(
-            {
-              type: 'error',
-              message: '该文件不存在'
-            }
-          )
+          remote.dialog.showMessageBoxSync({
+            type: 'error',
+            message: '该文件不存在'
+          })
         })
     }
 
@@ -111,6 +110,9 @@ function App() {
 
   // 监听mde内容变化的回调
   const fileChange = (id, value) => {
+    if(value === files[id].body) {
+      return
+    }
     // 更新md内容
     const newFile = { ...files[id], body: value }
     setFiles({ ...files, [id]: newFile })
@@ -123,15 +125,15 @@ function App() {
 
   // 删除文件
   const deleteFile = id => {
-    if(files[id].isNew) {
-      const { [id]: value, ...afterDelete} = files
+    if (files[id].isNew) {
+      const { [id]: value, ...afterDelete } = files
       setFiles(afterDelete)
 
       return
     }
 
     fileHelper.deleteFile(files[id].path).then(() => {
-      const { [id]: value, ...afterDelete} = files
+      const { [id]: value, ...afterDelete } = files
       setFiles(afterDelete)
       saveFilesToStore(afterDelete)
       // 关闭相应的以打开的tab
@@ -143,8 +145,9 @@ function App() {
   const updateFileName = (id, title, isNew) => {
     // 新文件和旧文件路径不一样
     // 旧文件的路径应该是旧路径+旧标题
-    const newPath = isNew ? join(savedLocation, `${title}.md`)
-                          : join(dirname(files[id].path), `${title}.md`)
+    const newPath = isNew
+      ? join(savedLocation, `${title}.md`)
+      : join(dirname(files[id].path), `${title}.md`)
     const modifiedFile = { ...files[id], title, isNew: false, path: newPath }
     const newFiles = { ...files, [id]: modifiedFile }
 
@@ -199,63 +202,69 @@ function App() {
 
   // 保存文件
   const saveCurrentFile = () => {
-    fileHelper
-      .writeFile(activeFile.path)
-      .then(() => {
-        setUnsavedFileIDs(unsavedFileIDs.filter(id => id !== activeFile.id))
-        remote.dialog.showMessageBox({
-          type: 'info',
-          title: `保存成功！`,
-          message: `保存成功！`
-        })
+    fileHelper.writeFile(activeFile.path).then(() => {
+      setUnsavedFileIDs(unsavedFileIDs.filter(id => id !== activeFile.id))
+      remote.dialog.showMessageBox({
+        type: 'info',
+        title: `保存成功！`,
+        message: `保存成功！`
       })
+    })
   }
 
   // 导入文件
   const importFiles = () => {
-    remote.dialog.showOpenDialog({
-      title: '选择导入的 Markdown 文件',
-      properties: ['openFile','multiSelections'],
-      filters: [
-        {name: 'Markdown files', extensions: ['md']}
-      ]
-    }, (paths) => {
-      console.log(paths);
-      if(Array.isArray(paths)) {
-        // 过滤掉已经添加的文件
-        const filteredPaths = paths.filter(path => {
-          const alreadyAdded = Object.values(files).find(file => {
-            return file.path === path 
+    remote.dialog.showOpenDialog(
+      {
+        title: '选择导入的 Markdown 文件',
+        properties: ['openFile', 'multiSelections'],
+        filters: [{ name: 'Markdown files', extensions: ['md'] }]
+      },
+      paths => {
+        console.log(paths)
+        if (Array.isArray(paths)) {
+          // 过滤掉已经添加的文件
+          const filteredPaths = paths.filter(path => {
+            const alreadyAdded = Object.values(files).find(file => {
+              return file.path === path
+            })
+            return !alreadyAdded
           })
-          return !alreadyAdded
-        })
 
-        // 将路径数组进行扩展
-        // [{id: '', path: '', title: ''}, ..., {}]
-        const importFilesArr = filteredPaths.map(path => {
-          return {
-            id: uuidv4(),
-            title: basename(path, extname(path)),
-            path
+          // 将路径数组进行扩展
+          // [{id: '', path: '', title: ''}, ..., {}]
+          const importFilesArr = filteredPaths.map(path => {
+            return {
+              id: uuidv4(),
+              title: basename(path, extname(path)),
+              path
+            }
+          })
+          // console.log(importFilesArr);
+
+          // 对文件数组进行展开
+          const newFiles = { ...files, ...flattenArr(importFilesArr) }
+          // console.log(newFiles);
+          setFiles(newFiles)
+          saveFilesToStore(newFiles)
+          if (importFilesArr.length > 0) {
+            remote.dialog.showMessageBox({
+              type: 'info',
+              title: `成功导入了${importFilesArr.length}个文件！`,
+              message: `成功导入了${importFilesArr.length}个文件！`
+            })
           }
-        })
-        // console.log(importFilesArr);
-
-        // 对文件数组进行展开
-        const newFiles = {...files, ...flattenArr(importFilesArr)}
-        // console.log(newFiles);
-        setFiles(newFiles)
-        saveFilesToStore(newFiles)
-        if(importFilesArr.length > 0) {
-          remote.dialog.showMessageBox({
-            type: 'info',
-            title: `成功导入了${importFilesArr.length}个文件！`,
-            message: `成功导入了${importFilesArr.length}个文件！`
-          })
         }
       }
-    })
+    )
   }
+
+  // 监听原生菜单事件
+  useIpcRenderer({
+    'create-new-file': createNewFile,
+    'import-file': importFiles,
+    'save-edit-file': saveCurrentFile,
+  })
 
   return (
     <div className="App container-fluid px-0">
@@ -310,12 +319,12 @@ function App() {
                   minHeight: '515px'
                 }}
               ></SimpleMDE>
-              <BottomBtn
+              {/* <BottomBtn
                 text="保存"
                 colorClass="btn-success"
                 icon={faSave}
                 onBtnClick={saveCurrentFile}
-              ></BottomBtn>
+              ></BottomBtn> */}
             </>
           )}
         </div>

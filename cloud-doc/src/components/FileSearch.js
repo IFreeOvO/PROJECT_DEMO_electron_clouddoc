@@ -3,6 +3,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faSearch, faTimes } from '@fortawesome/free-solid-svg-icons'
 import PropTypes from 'prop-types'
 import useKeyPress from '../hooks/useKeyPress'
+import useIpcRenderer from '../hooks/useIpcRenderer'
 
 const FileSearch = ({ title, onFileSearch }) => {
   const [inputActive, setInputActive] = useState(false)
@@ -44,6 +45,15 @@ const FileSearch = ({ title, onFileSearch }) => {
     // }
   })
 
+  const startSearch = () => {
+    setInputActive(true)
+  }
+
+  // 监听原生菜单事件
+  useIpcRenderer({
+    'search-file': startSearch,
+  })
+
   useEffect(() => {
     // 输入框自动聚焦
     if (inputActive) {
@@ -59,9 +69,7 @@ const FileSearch = ({ title, onFileSearch }) => {
           <button
             type="button"
             className="icon-button"
-            onClick={() => {
-              setInputActive(true)
-            }}
+            onClick={startSearch}
           >
             <FontAwesomeIcon
               size="lg"

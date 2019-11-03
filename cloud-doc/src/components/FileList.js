@@ -7,10 +7,6 @@ import useKeyPress from '../hooks/useKeyPress'
 import useContextMenu from '../hooks/useContextMenu'
 import { getParentNode } from '../utils/helper'
 
-// 加载node模块
-const { remote } = window.require('electron')
-const { Menu, MenuItem } = remote
-
 const FileList = ({ files, onFileClick, onSaveEdit, onFileDelete }) => {
   const [editStatus, setEditStatus] = useState(false)
   const [value, setValue] = useState('')
