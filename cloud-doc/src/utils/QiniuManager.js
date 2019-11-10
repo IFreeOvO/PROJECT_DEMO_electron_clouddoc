@@ -1,4 +1,6 @@
 const qiniu = require('qiniu')
+const axios = require('axios')
+const fs = require('fs')
 
 class QiniuManager {
   constructor(accessKey, secretKey, bucket) {
@@ -41,6 +43,71 @@ class QiniuManager {
         key,
         this._handleCallback(resolve, reject)
       )
+    })
+  }
+
+  // 获取bucket空间域名
+  getBucketDomain() {
+    const reqURL = `http://api.qiniu.com/v6/domain/list?tbl=${this.bucket}`
+    const digest = qiniu.util.generateAccessToken(this.mac, reqURL)
+
+    return new Promise((resolve, reject) => {
+      qiniu.rpc.postWithoutForm(
+        reqURL,
+        digest,
+        this._handleCallback(resolve, reject)
+      )
+    })
+  }
+
+  // 获取下载文件的链接
+  generateDownloadLink(key) {
+    const domainPromise = this.publicBucketDomain
+      ? Promise.resolve([this.publicBucketDomain])
+      : this.getBucketDomain()
+
+    return domainPromise.then(data => {
+      if (Array.isArray(data) && data.length > 0) {
+        // 判断含不含https
+        const pattern = /^https?/
+        this.publicBucketDomain = pattern.test(data[0])
+          ? data[0]
+          : `http://${data[0]}`
+
+        return this.bucketManager.publicDownloadUrl(
+          this.publicBucketDomain,
+          key
+        )
+      } else {
+        console.log('不存在')
+        throw Error('域名未找到,请查看储存空间是否过期')
+      }
+    })
+  }
+
+  downloadFile(key, downloadPath) {
+    // 获取下载链接
+    return this.generateDownloadLink(key).then(link => {
+      const timeStamp = new Date().getTime()
+      const url = `${link}?timestamp=${timeStamp}`
+
+      return axios({
+        url,
+        method: 'GET',
+        responseType: 'stream',
+        headers: { 'Cache-Control': 'no-cache' }
+      })
+    }).then(response => {
+      // 创建写入流
+      const writer = fs.createWriteStream(downloadPath)
+
+      response.data.pipe(writer)
+      return new Promise((resolve,reject) => {
+        writer.on('finish', resolve)
+        writer.on('error', reject)
+      })
+    }).catch((err) => {
+      return Promise.reject({err: err.response})
     })
   }
 
