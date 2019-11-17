@@ -1,17 +1,20 @@
-const { app, Menu, ipcMain } = require('electron')
+const { app, Menu, ipcMain, dialog } = require('electron')
 const isDev = require('electron-is-dev') // 环境变量
 const path = require('path')
 const menuTemplate = require('./src/menuTemplate')
 const Store = require('electron-store')
 const AppWindow = require('./src/AppWindow')
+const  QiniuManager = require('./src/utils/QiniuManager')
 const settingsStore = new Store({ name: 'Settings' })
-const qiniuConfigArr = [
-  '#savedFileLocation',
-  '#accessKey',
-  '#secretKey',
-  '#bucketName'
-]
+
 let mainWindow, settingsWindow
+
+const createManager = () => {
+  const accessKey = settingsStore.get('accessKey')
+  const secretKey = settingsStore.get('secretKey')
+  const bucketName = settingsStore.get('bucketName')
+  return new QiniuManager(accessKey, secretKey, bucketName)
+}
 
 app.on('ready', () => {
   const mainWindowConfig = {
@@ -31,7 +34,7 @@ app.on('ready', () => {
   let menu = Menu.buildFromTemplate(menuTemplate)
   Menu.setApplicationMenu(menu)
 
-  ipcMain.on('open-settings-window', () => {
+  ipcMain.on('open-settings-window', (event, data) => {
     const settingsWindowConfig = {
       width: 500,
       height: 400,
@@ -42,6 +45,17 @@ app.on('ready', () => {
       './settings/settings.html'
     )}`
     settingsWindow = new AppWindow(settingsWindowConfig, settingsFileLocation)
+  })
+
+  // 监听自动保存到七牛云
+  ipcMain.on('upload-file', (event, data) => {
+    const manager = createManager()
+    manager.uploadFile(data.key, data.path).then(data => {
+      console.log('上传成功', data);
+      mainWindow.webContents.send('active-file-uploaded')
+    }).catch(() => {
+      dialog.showErrorBox('同步失败', '请检查七牛云参数是否正确')
+    })
   })
 
   ipcMain.on('config-is-saved', () => {

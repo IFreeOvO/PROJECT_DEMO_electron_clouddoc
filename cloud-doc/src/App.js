@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { faPlus, faFileImport, faSave } from '@fortawesome/free-solid-svg-icons'
 import SimpleMDE from 'react-simplemde-editor'
 import uuidv4 from 'uuid/v4'
-import { flattenArr, objToArr } from './utils/helper'
+import { flattenArr, objToArr, timestampToString } from './utils/helper'
 import fileHelper from './utils/fileHelper'
 
 import './App.css'
@@ -21,17 +21,23 @@ const { remote, ipcRenderer } = window.require('electron')
 const Store = window.require('electron-store')
 const fileStore = new Store({ name: 'Files Data' }) // 存储在~/Library/ApplicationSupport/cloud-doc/Files Data.json里
 const settingsStore = new Store({ name: 'Settings' })
+const getAutoSync = () =>
+  ['accessKey', 'secretKey', 'bucketName', 'enableAutoSync'].every(
+    key => !!settingsStore.get(key)
+  )
 
 // 本地持久化,新建和重命名时需要
 const saveFilesToStore = files => {
   // 不必存储所有信息，例如：isNew, body等
   const fileStoreObj = objToArr(files).reduce((result, file) => {
-    const { id, path, title, createdAt } = file
+    const { id, path, title, createdAt, isSynced, updatedAt } = file
     result[id] = {
       id,
       path,
       title,
-      createdAt
+      createdAt,
+      isSynced,
+      updatedAt
     }
     return result
   }, {})
@@ -203,13 +209,17 @@ function App() {
 
   // 保存文件
   const saveCurrentFile = () => {
-    fileHelper.writeFile(activeFile.path).then(() => {
+    const { path, body, title } = activeFile
+    fileHelper.writeFile(path, body).then(() => {
       setUnsavedFileIDs(unsavedFileIDs.filter(id => id !== activeFile.id))
       remote.dialog.showMessageBox({
         type: 'info',
         title: `保存成功！`,
         message: `保存成功！`
       })
+      if (getAutoSync()) {
+        ipcRenderer.send('upload-file', { key: `${title}.md`, path })
+      }
     })
   }
 
@@ -260,11 +270,20 @@ function App() {
     )
   }
 
+  const activeFileUploaded = () => {
+    const { id } = activeFile
+    const modifiedFile = { ...files[id], isSynced: true, updatedAt: new Date() }
+    const newFiles = { ...files, [id]: modifiedFile }
+    setFiles(newFiles)
+    saveFilesToStore(newFiles)
+  }
+
   // 监听原生菜单事件
   useIpcRenderer({
     'create-new-file': createNewFile,
     'import-file': importFiles,
-    'save-edit-file': saveCurrentFile
+    'save-edit-file': saveCurrentFile,
+    'active-file-uploaded': activeFileUploaded
   })
 
   return (
@@ -320,12 +339,11 @@ function App() {
                   minHeight: '515px'
                 }}
               ></SimpleMDE>
-              {/* <BottomBtn
-                text="保存"
-                colorClass="btn-success"
-                icon={faSave}
-                onBtnClick={saveCurrentFile}
-              ></BottomBtn> */}
+              {activeFile.isSynced && (
+                <span className="sync-status">
+                  已同步，上次同步时间{timestampToString(activeFile.updatedAt)}
+                </span>
+              )}
             </>
           )}
         </div>
