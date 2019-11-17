@@ -60,6 +60,17 @@ class QiniuManager {
     })
   }
 
+  // 获取文件信息
+  getState(key) {
+    return new Promise((resolve, reject) => {
+      this.bucketManager.stat(
+        this.bucket,
+        key,
+        this._handleCallback(resolve, reject)
+      )
+    })
+  }
+
   // 获取下载文件的链接
   generateDownloadLink(key) {
     const domainPromise = this.publicBucketDomain
@@ -87,28 +98,31 @@ class QiniuManager {
 
   downloadFile(key, downloadPath) {
     // 获取下载链接
-    return this.generateDownloadLink(key).then(link => {
-      const timeStamp = new Date().getTime()
-      const url = `${link}?timestamp=${timeStamp}`
+    return this.generateDownloadLink(key)
+      .then(link => {
+        const timeStamp = new Date().getTime()
+        const url = `${link}?timestamp=${timeStamp}`
 
-      return axios({
-        url,
-        method: 'GET',
-        responseType: 'stream',
-        headers: { 'Cache-Control': 'no-cache' }
+        return axios({
+          url,
+          method: 'GET',
+          responseType: 'stream',
+          headers: { 'Cache-Control': 'no-cache' }
+        })
       })
-    }).then(response => {
-      // 创建写入流
-      const writer = fs.createWriteStream(downloadPath)
+      .then(response => {
+        // 创建写入流
+        const writer = fs.createWriteStream(downloadPath)
 
-      response.data.pipe(writer)
-      return new Promise((resolve,reject) => {
-        writer.on('finish', resolve)
-        writer.on('error', reject)
+        response.data.pipe(writer)
+        return new Promise((resolve, reject) => {
+          writer.on('finish', resolve)
+          writer.on('error', reject)
+        })
       })
-    }).catch((err) => {
-      return Promise.reject({err: err.response})
-    })
+      .catch(err => {
+        return Promise.reject({ err: err.response })
+      })
   }
 
   _handleCallback(resolve, reject) {

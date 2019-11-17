@@ -68,27 +68,33 @@ function App() {
 
     // 从本地读取文件
     const currentFile = files[fileID]
-    if (!currentFile.isLoaded) {
-      fileHelper
-        .readFile(currentFile.path)
-        .then(value => {
-          const newFile = { ...files[fileID], body: value, isLoaded: true }
-          setFiles({ ...files, [fileID]: newFile })
-        })
-        .catch(e => {
-          console.log(e)
+    const { id, title, path, isLoaded } = currentFile
 
-          delete files[fileID]
-          setFiles(files)
-          saveFilesToStore(files)
-          // 关闭相应的以打开的tab
-          tabClose(fileID)
-
-          remote.dialog.showMessageBoxSync({
-            type: 'error',
-            message: '该文件不存在'
+    if (!isLoaded) {
+      if (getAutoSync()) {
+        ipcRenderer.send('download-file', { key: `${title}.md`, path, id })
+      } else {
+        fileHelper
+          .readFile(currentFile.path)
+          .then(value => {
+            const newFile = { ...files[fileID], body: value, isLoaded: true }
+            setFiles({ ...files, [fileID]: newFile })
           })
-        })
+          .catch(e => {
+            console.log(e)
+
+            delete files[fileID]
+            setFiles(files)
+            saveFilesToStore(files)
+            // 关闭相应的以打开的tab
+            tabClose(fileID)
+
+            remote.dialog.showMessageBoxSync({
+              type: 'error',
+              message: '该文件不存在'
+            })
+          })
+      }
     }
 
     if (!openedFileIDs.includes(fileID)) {
@@ -270,12 +276,37 @@ function App() {
     )
   }
 
+  // 文件上传
   const activeFileUploaded = () => {
     const { id } = activeFile
-    const modifiedFile = { ...files[id], isSynced: true, updatedAt: new Date() }
+    const modifiedFile = { ...files[id], isSynced: true, updatedAt: new Date().getTime() }
     const newFiles = { ...files, [id]: modifiedFile }
     setFiles(newFiles)
     saveFilesToStore(newFiles)
+  }
+
+  // 文件下载
+  const activeFileDownloaded = (event, message) => {
+    const currentFile = files[message.id]
+    const { id, path } = currentFile
+    fileHelper.readFile(path).then(value => {
+      let newFile
+      if (message.status === 'download-sucess') {
+        newFile = {
+          ...files[id],
+          body: value,
+          isLoaded: true,
+          isSynced: true,
+          updatedAt: new Date().getTime()
+        }
+      } else {
+        console.log('没有新文件');
+        newFile = { ...files[id], body: value, isLoaded: true }
+      }
+      const newFiles = { ...files, [id]: newFile }
+      setFiles(newFiles)
+      saveFilesToStore(newFiles)
+    })
   }
 
   // 监听原生菜单事件
@@ -283,7 +314,8 @@ function App() {
     'create-new-file': createNewFile,
     'import-file': importFiles,
     'save-edit-file': saveCurrentFile,
-    'active-file-uploaded': activeFileUploaded
+    'active-file-uploaded': activeFileUploaded,
+    'file-downloaded': activeFileDownloaded
   })
 
   return (

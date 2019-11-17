@@ -4,9 +4,9 @@ const path = require('path')
 const menuTemplate = require('./src/menuTemplate')
 const Store = require('electron-store')
 const AppWindow = require('./src/AppWindow')
-const  QiniuManager = require('./src/utils/QiniuManager')
+const QiniuManager = require('./src/utils/QiniuManager')
 const settingsStore = new Store({ name: 'Settings' })
-
+const fileStore = new Store({ name: 'Files Data' })
 let mainWindow, settingsWindow
 
 const createManager = () => {
@@ -50,12 +50,46 @@ app.on('ready', () => {
   // 监听自动保存到七牛云
   ipcMain.on('upload-file', (event, data) => {
     const manager = createManager()
-    manager.uploadFile(data.key, data.path).then(data => {
-      console.log('上传成功', data);
-      mainWindow.webContents.send('active-file-uploaded')
-    }).catch(() => {
-      dialog.showErrorBox('同步失败', '请检查七牛云参数是否正确')
-    })
+    manager
+      .uploadFile(data.key, data.path)
+      .then(data => {
+        console.log('上传成功', data)
+        mainWindow.webContents.send('active-file-uploaded')
+      })
+      .catch(() => {
+        dialog.showErrorBox('同步失败', '请检查七牛云参数是否正确')
+      })
+  })
+
+  // 监听文件下载
+  ipcMain.on('download-file', (event, data) => {
+    const manager = createManager()
+    const filesObj = fileStore.get('file')
+    const { key, path, id} = data
+    manager.getState(data.key).then(
+      resp => {
+        console.log('文件存在', resp)
+        console.log(filesObj[data.id])
+        // 七牛云时间戳是精确到纳秒的
+        const serverUpdatedTime = Math.round(resp.putTime / 10000)
+        const localUpdatedTime = filesObj[id].updatedAt
+        if(serverUpdatedTime > localUpdatedTime || !localUpdatedTime) {
+          manager.downloadFile(key, path).then(() => {
+            console.log('更新本地文件');
+            mainWindow.webContents.send('file-downloaded', { status: 'download-sucess', id })
+          })
+        } else {
+          console.log('no-new-file');
+          mainWindow.webContents.send('file-downloaded', { status: 'no-new-file', id })
+        }
+      },
+      error => {
+        console.log(error)
+        if (error.statusCode === 612) {
+          mainWindow.webContents.send('file-downloaded', { status: 'no-file', id })
+        }
+      }
+    )
   })
 
   ipcMain.on('config-is-saved', () => {
