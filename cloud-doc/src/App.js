@@ -185,6 +185,13 @@ function App() {
       }
     }
 
+    if (getAutoSync()) {
+      ipcRenderer.send('move-file', {
+        srcKey: `${files[id].title}.md`,
+        destKey: `${title}.md`
+      })
+    }
+
     if (isNew) {
       fileHelper.writeFile(newPath, files[id].body).then(() => {
         setFiles(newFiles)
@@ -284,7 +291,11 @@ function App() {
   // 文件上传
   const activeFileUploaded = () => {
     const { id } = activeFile
-    const modifiedFile = { ...files[id], isSynced: true, updatedAt: new Date().getTime() }
+    const modifiedFile = {
+      ...files[id],
+      isSynced: true,
+      updatedAt: new Date().getTime()
+    }
     const newFiles = { ...files, [id]: modifiedFile }
     setFiles(newFiles)
     saveFilesToStore(newFiles)
@@ -305,7 +316,7 @@ function App() {
           updatedAt: new Date().getTime()
         }
       } else {
-        console.log('没有新文件');
+        console.log('没有新文件')
         newFile = { ...files[id], body: value, isLoaded: true }
       }
       const newFiles = { ...files, [id]: newFile }
@@ -321,12 +332,14 @@ function App() {
     'save-edit-file': saveCurrentFile,
     'active-file-uploaded': activeFileUploaded,
     'file-downloaded': activeFileDownloaded,
-    'loading-status': (message, status) => {setLoading(status)}
+    'loading-status': (message, status) => {
+      setLoading(status)
+    }
   })
 
   return (
     <div className="App container-fluid px-0">
-      {isLoading && <Loader/>}
+      {isLoading && <Loader />}
       <div className="row row no-gutters">
         <div className="col-3 bg-light left-panel">
           <FileSearch title="我的云文档" onFileSearch={fileSearch}></FileSearch>

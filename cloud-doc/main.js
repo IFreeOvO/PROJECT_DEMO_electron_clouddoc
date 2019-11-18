@@ -118,6 +118,21 @@ app.on('ready', () => {
     })
   })
 
+  // 监听文件重命名
+  ipcMain.on('move-file', (event, data) => {
+    const manager = createManager()
+    const {srcKey, destKey} = data
+    // console.log('收到数据', srcKey, destKey);
+    manager.getState(srcKey).then((res) => {
+      // console.log('找到要重命名的云端文件');
+      manager.moveFile(srcKey, destKey).then(() => {
+        console.log('重命名成功');
+      })
+    }).catch(err => {
+      console.log('重命名的文件不在云端', err);
+    })
+  })
+
   ipcMain.on('config-is-saved', () => {
     let qiniuMenu =
       process.platform === 'darwin' ? menu.items[3] : menu.items[2]

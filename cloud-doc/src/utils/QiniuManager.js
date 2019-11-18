@@ -15,6 +15,24 @@ class QiniuManager {
     this.bucketManager = new qiniu.rs.BucketManager(this.mac, this.config)
   }
 
+  // 文件移动或重命名
+  moveFile(srcKey, destKey) {
+    return new Promise((resolve, reject) => {
+      // 强制覆盖已有同名文件
+      const options = {
+        force: true
+      }
+      this.bucketManager.move(
+        this.bucket,
+        srcKey,
+        this.bucket,
+        destKey,
+        options,
+        this._handleCallback(resolve, reject)
+      )
+    })
+  }
+
   uploadFile(key, localFilePath) {
     // 上传凭证
     const options = {
