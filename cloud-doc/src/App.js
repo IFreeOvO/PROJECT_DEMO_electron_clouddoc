@@ -14,6 +14,7 @@ import FileList from './components/FileList'
 import BottomBtn from './components/BottomBtn'
 import TabList from './components/TabList'
 import useIpcRenderer from './hooks/useIpcRenderer'
+import Loader from './components/Loader'
 
 // 导入node模块
 const { join, basename, extname, dirname } = window.require('path') // 直接取path的join方法
@@ -51,6 +52,7 @@ function App() {
   const [openedFileIDs, setOpenedFileIDs] = useState([])
   const [unsavedFileIDs, setUnsavedFileIDs] = useState([])
   const [searchFiles, setSearchFiles] = useState([])
+  const [isLoading, setLoading] = useState(false)
 
   const filesArr = objToArr(files)
   const savedLocation =
@@ -315,11 +317,13 @@ function App() {
     'import-file': importFiles,
     'save-edit-file': saveCurrentFile,
     'active-file-uploaded': activeFileUploaded,
-    'file-downloaded': activeFileDownloaded
+    'file-downloaded': activeFileDownloaded,
+    'loading-status': (message, status) => {setLoading(status)}
   })
 
   return (
     <div className="App container-fluid px-0">
+      {isLoading && <Loader/>}
       <div className="row row no-gutters">
         <div className="col-3 bg-light left-panel">
           <FileSearch title="我的云文档" onFileSearch={fileSearch}></FileSearch>

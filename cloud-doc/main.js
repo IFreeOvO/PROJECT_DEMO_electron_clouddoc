@@ -92,6 +92,15 @@ app.on('ready', () => {
     )
   })
 
+  // 监听全部上传到云端
+  ipcMain.on('upload-all-to-qiniu', () => {
+    mainWindow.webContents.send('loading-status', true)
+
+    setTimeout(() => {
+      mainWindow.webContents.send('loading-status', false)
+    }, 2000)
+  })
+
   ipcMain.on('config-is-saved', () => {
     let qiniuMenu =
       process.platform === 'darwin' ? menu.items[3] : menu.items[2]
