@@ -101,6 +101,23 @@ app.on('ready', () => {
     }, 2000)
   })
 
+  // 监听文件删除
+  ipcMain.on('delete-file', (event, data) => {
+    const manager = createManager()
+    manager.getState(data.key).then((res) => {
+      console.log('找到要删除的云端文件');
+      manager.deleteFile(data.key).then(() => {
+        dialog.showMessageBox({
+          type: 'info',
+          title: `删除成功！`,
+          message: `删除成功！`
+        })
+      })
+    }).catch(err => {
+      console.log('删除的文件不在云端', err);
+    })
+  })
+
   ipcMain.on('config-is-saved', () => {
     let qiniuMenu =
       process.platform === 'darwin' ? menu.items[3] : menu.items[2]

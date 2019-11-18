@@ -153,6 +153,9 @@ function App() {
       saveFilesToStore(afterDelete)
       // 关闭相应的以打开的tab
       tabClose(id)
+      if (getAutoSync()) {
+        ipcRenderer.send('delete-file', { key: `${files[id].title}.md` })
+      }
     })
   }
 
