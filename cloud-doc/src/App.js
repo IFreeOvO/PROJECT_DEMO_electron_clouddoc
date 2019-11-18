@@ -173,6 +173,8 @@ function App() {
     // 判断是否重名
 
     console.log('首次进入', files[id].title, title)
+    const oldName = files[id].title
+    const newName = title
     if (files[id].title !== title) {
       console.log('修改过')
       for (let i = 0; i < filesArr.length; i++) {
@@ -184,24 +186,27 @@ function App() {
         }
       }
     }
-
-    if (getAutoSync()) {
-      ipcRenderer.send('move-file', {
-        srcKey: `${files[id].title}.md`,
-        destKey: `${title}.md`
-      })
-    }
-
+    let path
     if (isNew) {
+      path = newPath
       fileHelper.writeFile(newPath, files[id].body).then(() => {
         setFiles(newFiles)
         saveFilesToStore(newFiles)
       })
     } else {
       const oldPath = files[id].path
+      path = oldPath
       fileHelper.renameFile(oldPath, newPath).then(() => {
         setFiles(newFiles)
         saveFilesToStore(newFiles)
+      })
+    }
+
+    if (getAutoSync()) {
+      ipcRenderer.send('move-file', {
+        srcKey: `${oldName}.md`,
+        destKey: `${newName}.md`,
+        path
       })
     }
   }
@@ -325,6 +330,21 @@ function App() {
     })
   }
 
+  // 上传所有文件
+  const filesUploaded = () => {
+    const newFiles = objToArr(files).reduce((result, file) => {
+      const currentTime = new Date().getTime()
+      result[file.id] = {
+        ...files[file.id],
+        isSynced: true,
+        updatedAt: currentTime
+      }
+      return result
+    }, {})
+    setFiles(newFiles)
+    saveFilesToStore(newFiles)
+  }
+
   // 监听原生菜单事件
   useIpcRenderer({
     'create-new-file': createNewFile,
@@ -332,6 +352,7 @@ function App() {
     'save-edit-file': saveCurrentFile,
     'active-file-uploaded': activeFileUploaded,
     'file-downloaded': activeFileDownloaded,
+    'files-uploaded': filesUploaded,
     'loading-status': (message, status) => {
       setLoading(status)
     }

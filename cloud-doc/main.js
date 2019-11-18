@@ -65,7 +65,7 @@ app.on('ready', () => {
   ipcMain.on('download-file', (event, data) => {
     const manager = createManager()
     const filesObj = fileStore.get('file')
-    const { key, path, id} = data
+    const { key, path, id } = data
     manager.getState(data.key).then(
       resp => {
         console.log('文件存在', resp)
@@ -73,20 +73,29 @@ app.on('ready', () => {
         // 七牛云时间戳是精确到纳秒的
         const serverUpdatedTime = Math.round(resp.putTime / 10000)
         const localUpdatedTime = filesObj[id].updatedAt
-        if(serverUpdatedTime > localUpdatedTime || !localUpdatedTime) {
+        if (serverUpdatedTime > localUpdatedTime || !localUpdatedTime) {
           manager.downloadFile(key, path).then(() => {
-            console.log('更新本地文件');
-            mainWindow.webContents.send('file-downloaded', { status: 'download-sucess', id })
+            console.log('更新本地文件')
+            mainWindow.webContents.send('file-downloaded', {
+              status: 'download-sucess',
+              id
+            })
           })
         } else {
-          console.log('no-new-file');
-          mainWindow.webContents.send('file-downloaded', { status: 'no-new-file', id })
+          console.log('no-new-file')
+          mainWindow.webContents.send('file-downloaded', {
+            status: 'no-new-file',
+            id
+          })
         }
       },
       error => {
         console.log(error)
         if (error.statusCode === 612) {
-          mainWindow.webContents.send('file-downloaded', { status: 'no-file', id })
+          mainWindow.webContents.send('file-downloaded', {
+            status: 'no-file',
+            id
+          })
         }
       }
     )
@@ -94,6 +103,35 @@ app.on('ready', () => {
 
   // 监听全部上传到云端
   ipcMain.on('upload-all-to-qiniu', () => {
+    console.log('全部上传')
+    mainWindow.webContents.send('loading-status', true)
+    const manager = createManager()
+    const filesObj = fileStore.get('file') || {}
+    const uploadPromiseArr = Object.keys(filesObj).map(key => {
+      const file = filesObj[key]
+      return manager.uploadFile(`${file.title}.md`, file.path)
+    })
+
+    Promise.all(uploadPromiseArr)
+      .then(res => {
+        console.log('全部上传完毕', res)
+        dialog.showMessageBox({
+          type: 'info',
+          title: `成功上传了${res.length}个文件！`,
+          message: `成功上传了${res.length}个文件！`
+        })
+        mainWindow.webContents.send('files-uploaded')
+      })
+      .catch(() => {
+        dialog.showErrorBox('同步失败', '请检查七牛云参数是否正确')
+      }).finally(() => {
+        mainWindow.webContents.send('loading-status', false)
+      })
+  })
+
+  // 监听全部下载到本地
+  ipcMain.on('download-all-to-qiniu', () => {
+    console.log('全部上传')
     mainWindow.webContents.send('loading-status', true)
 
     setTimeout(() => {
@@ -104,33 +142,48 @@ app.on('ready', () => {
   // 监听文件删除
   ipcMain.on('delete-file', (event, data) => {
     const manager = createManager()
-    manager.getState(data.key).then((res) => {
-      console.log('找到要删除的云端文件');
-      manager.deleteFile(data.key).then(() => {
-        dialog.showMessageBox({
-          type: 'info',
-          title: `删除成功！`,
-          message: `删除成功！`
+    manager
+      .getState(data.key)
+      .then(res => {
+        console.log('找到要删除的云端文件')
+        manager.deleteFile(data.key).then(() => {
+          dialog.showMessageBox({
+            type: 'info',
+            title: `删除成功！`,
+            message: `删除成功！`
+          })
         })
       })
-    }).catch(err => {
-      console.log('删除的文件不在云端', err);
-    })
+      .catch(err => {
+        console.log('删除的文件不在云端', err)
+      })
   })
 
   // 监听文件重命名
   ipcMain.on('move-file', (event, data) => {
     const manager = createManager()
-    const {srcKey, destKey} = data
+    const { srcKey, destKey, path } = data
     // console.log('收到数据', srcKey, destKey);
-    manager.getState(srcKey).then((res) => {
-      // console.log('找到要重命名的云端文件');
-      manager.moveFile(srcKey, destKey).then(() => {
-        console.log('重命名成功');
+    manager
+      .getState(srcKey)
+      .then(res => {
+        // console.log('找到要重命名的云端文件');
+        manager.moveFile(srcKey, destKey).then(() => {
+          console.log('重命名成功')
+        })
       })
-    }).catch(err => {
-      console.log('重命名的文件不在云端', err);
-    })
+      .catch(err => {
+        console.log('重命名的文件不在云端', err)
+        // manager
+        //   .uploadFile(destKey, path)
+        //   .then(data => {
+        //     console.log('上传成功', data)
+        //     mainWindow.webContents.send('active-file-uploaded')
+        //   })
+        //   .catch(() => {
+        //     dialog.showErrorBox('同步失败', '请检查七牛云参数是否正确')
+        //   })
+      })
   })
 
   ipcMain.on('config-is-saved', () => {
