@@ -1,4 +1,5 @@
 const { app, Menu, ipcMain, dialog } = require('electron')
+const uuidv4 = require('uuid/v4')
 const isDev = require('electron-is-dev') // 环境变量
 const path = require('path')
 const menuTemplate = require('./src/menuTemplate')
@@ -8,7 +9,6 @@ const QiniuManager = require('./src/utils/QiniuManager')
 const settingsStore = new Store({ name: 'Settings' })
 const fileStore = new Store({ name: 'Files Data' })
 let mainWindow, settingsWindow
-
 const createManager = () => {
   const accessKey = settingsStore.get('accessKey')
   const secretKey = settingsStore.get('secretKey')
@@ -103,7 +103,6 @@ app.on('ready', () => {
 
   // 监听全部上传到云端
   ipcMain.on('upload-all-to-qiniu', () => {
-    console.log('全部上传')
     mainWindow.webContents.send('loading-status', true)
     const manager = createManager()
     const filesObj = fileStore.get('file') || {}
@@ -124,19 +123,114 @@ app.on('ready', () => {
       })
       .catch(() => {
         dialog.showErrorBox('同步失败', '请检查七牛云参数是否正确')
-      }).finally(() => {
+      })
+      .finally(() => {
         mainWindow.webContents.send('loading-status', false)
       })
   })
 
   // 监听全部下载到本地
   ipcMain.on('download-all-to-qiniu', () => {
-    console.log('全部上传')
     mainWindow.webContents.send('loading-status', true)
 
-    setTimeout(() => {
-      mainWindow.webContents.send('loading-status', false)
-    }, 2000)
+    // 获取本地文件名
+    const filesObj = fileStore.get('file') || {}
+    const localFiles = Object.keys(filesObj).reduce((files, fileKey) => {
+      const title = filesObj[fileKey].title + '.md'
+      files[title] = filesObj[fileKey]
+      return files
+    }, {})
+    console.log('本地文件', localFiles)
+
+    const manager = createManager()
+
+    const savedLocation =
+      settingsStore.get('savedFileLocation') || app.getPath('documents')
+    let downloadFiles = []
+    // 获取云端文件列表
+    manager
+      .getFilesList()
+      .then(({ items }) => {
+        // console.log('返回', items)
+        // 和本地列表进行对比，下载文件应该是比本地新的或本地没有的
+        downloadFiles = items.filter(item => {
+          if (localFiles[item.key]) {
+            console.log('本地存在', item.key)
+            return item.putTime / 10000 > localFiles[item.key].updatedAt
+          } else {
+            console.log('本地不存在', item.key)
+            return true
+          }
+        })
+        console.log('需要下载的文件列表', downloadFiles)
+
+        const downloadPromiseArr = downloadFiles.map(item => {
+          // 本地存在的按原路径下载，不存在的按设置路径下载
+          if (localFiles[item.key]) {
+            return manager.downloadFile(item.key, localFiles[item.key].path)
+          } else {
+            return manager.downloadFile(
+              item.key,
+              path.join(savedLocation, item.key)
+            )
+          }
+        })
+
+        return Promise.all(downloadPromiseArr)
+      })
+      .then(arr => {
+        dialog.showMessageBox({
+          type: 'info',
+          title: `本地下载更新完毕！`,
+          message: `本地下载更新完毕！`
+        })
+
+        // // 生成一个新的key为id, value为文件详情的object
+        // 本地存在的对象覆盖掉，不存在的新建一个文件对象
+        const finalFilesObj = downloadFiles.reduce(
+          (newFilesObj, qiniuFile) => {
+            const currentFile = localFiles[qiniuFile.key]
+            if (currentFile) {
+              const updateItem = {
+                ...currentFile,
+                isSynced: true,
+                updatedAt: new Date().getTime()
+              }
+              return {
+                ...newFilesObj,
+                [currentFile.id]: updateItem
+              }
+            } else {
+              const newId = uuidv4()
+              const title = qiniuFile.key.split('.')[0]
+              const newItem = {
+                id: newId,
+                title,
+                body: '## 请输出 Markdown',
+                createdAt: new Date().getTime(),
+                path: path.join(savedLocation, `${title}.md`),
+                isSynced: true,
+                updatedAt: new Date().getTime()
+              }
+              return {
+                ...newFilesObj,
+                [newId]: newItem
+              }
+            }
+          },
+          { ...filesObj }
+        )
+        console.log('更新本地数据', finalFilesObj)
+        mainWindow.webContents.send('files-downLoaded', {
+          newFiles: finalFilesObj
+        })
+      })
+      .catch(() => {
+        dialog.showErrorBox('下载失败', '下载失败')
+      })
+      .finally(() => {
+        mainWindow.webContents.send('loading-status', false)
+      })
   })
 
   // 监听文件删除

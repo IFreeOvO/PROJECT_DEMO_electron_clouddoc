@@ -345,6 +345,12 @@ function App() {
     saveFilesToStore(newFiles)
   }
 
+  // 下载所有文件到本地
+  const filesDownLoaded = (event, {newFiles}) => {
+    setFiles(newFiles)
+    saveFilesToStore(newFiles)
+  }
+
   // 监听原生菜单事件
   useIpcRenderer({
     'create-new-file': createNewFile,
@@ -353,6 +359,7 @@ function App() {
     'active-file-uploaded': activeFileUploaded,
     'file-downloaded': activeFileDownloaded,
     'files-uploaded': filesUploaded,
+    'files-downLoaded': filesDownLoaded,
     'loading-status': (message, status) => {
       setLoading(status)
     }

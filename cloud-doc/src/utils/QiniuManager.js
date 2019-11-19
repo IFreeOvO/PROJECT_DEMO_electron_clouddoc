@@ -33,6 +33,18 @@ class QiniuManager {
     })
   }
 
+  // 获取指定前缀的文件列表
+  getFilesList() {
+    return new Promise((resolve, reject) => {
+      const options = {}
+      this.bucketManager.listPrefix(
+        this.bucket,
+        options,
+        this._handleCallback(resolve, reject)
+      )
+    })
+  }
+
   uploadFile(key, localFilePath) {
     // 上传凭证
     const options = {
