@@ -22,7 +22,9 @@ app.on('ready', () => {
     height: 680
   }
 
-  const urlLocation = isDev ? 'http://localhost:3000/' : 'dummyurl'
+  const urlLocation = isDev
+    ? 'http://localhost:3000/'
+    : `file://${path.join(__dirname, './index.html')}`
   // mainWindow.loadURL(urlLocation)
   mainWindow = new AppWindow(mainWindowConfig, urlLocation)
   // 窗口关闭后进行回收
@@ -298,5 +300,5 @@ app.on('ready', () => {
     }
   })
 
-  mainWindow.webContents.openDevTools() // 打开开发者工具
+  // mainWindow.webContents.openDevTools() // 打开开发者工具
 })

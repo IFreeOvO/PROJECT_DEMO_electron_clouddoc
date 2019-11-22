@@ -2,36 +2,88 @@
   "name": "cloud-doc",
   "version": "0.1.0",
   "main": "main.js",
+  "description": "Online Markdown Editor using Qiniu cloud service",
   "private": true,
+  "author": {
+    "name": "IFreeOvO",
+    "email": "demo@qq.com"
+  },
   "dependencies": {
-    "@fortawesome/fontawesome-svg-core": "^1.2.24",
-    "@fortawesome/free-brands-svg-icons": "^5.11.1",
-    "@fortawesome/free-solid-svg-icons": "^5.11.1",
-    "@fortawesome/react-fontawesome": "^0.1.4",
-    "axios": "^0.19.0",
     "bootstrap": "^4.3.1",
-    "classnames": "^2.2.6",
-    "concurrently": "^4.1.2",
-    "cross-env": "^6.0.0",
-    "electron": "^6.0.10",
-    "electron-is-dev": "^1.1.0",
     "electron-store": "^5.0.0",
-    "node-sass": "^4.12.0",
-    "qiniu": "^7.2.2",
-    "react": "^16.9.0",
-    "react-dom": "^16.9.0",
-    "react-scripts": "3.1.2",
-    "react-simplemde-editor": "^4.1.0",
-    "uuid": "^3.3.3",
-    "wait-on": "^3.3.0"
+    "uuid": "^3.3.3"
   },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
+    "buildMain": "webpack",
     "ele": "nodemon --watch main.js --watch src/menuTemplate.js --exec \"electron .\"",
-    "dev": "concurrently \"cross-env BROWSER=none npm start\" \"wait-on http://localhost:3000 && npm run ele\""
+    "dev": "concurrently \"cross-env BROWSER=none npm start\" \"wait-on http://localhost:3000 && npm run ele\"",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "prepack": "npm run build && npm run buildMain",
+    "predist": "npm run build && npm run buildMain"
+  },
+  "homepage": "./",
+  "build": {
+    "appId": "cloudDoc",
+    "productName": "七牛云文档",
+    "copyright": "Copyright © 2019 ${author}",
+    "files": [
+      "build/**/*",
+      "node_modules/**/*",
+      "settings/**/*",
+      "package.json"
+    ],
+    "extends": null,
+    "directories": {
+      "buildResources": "./assets/*"
+    },
+    "extraMetadata": {
+      "main": "./build/main.js"
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "dmg": {
+      "background": "assets/appdmg.png",
+      "icon": "assets/icon.icns",
+      "iconSize": 100,
+      "contents": [
+        {
+          "x": 380,
+          "y": 280,
+          "type": "link",
+          "path": "/Applications"
+        },
+        {
+          "x": 110,
+          "y": 280,
+          "type": "file"
+        }
+      ],
+      "window": {
+        "width": 500,
+        "height": 500
+      }
+    },
+    "win": {
+      "target": [
+        "msi",
+        "nsis"
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "${productName}-Web-Setup-${version}.${ext}",
+      "publisherName": "Viking Zhang"
+    },
+    "nsis": {
+      "allowToChangeInstallationDirectory": true,
+      "oneClick": false,
+      "perMachine": false
+    }
   },
   "eslintConfig": {
     "extends": "react-app",
@@ -52,7 +104,26 @@
     ]
   },
   "devDependencies": {
+    "@fortawesome/fontawesome-svg-core": "^1.2.24",
+    "@fortawesome/free-brands-svg-icons": "^5.11.1",
+    "@fortawesome/free-solid-svg-icons": "^5.11.1",
+    "@fortawesome/react-fontawesome": "^0.1.4",
+    "axios": "^0.19.0",
+    "classnames": "^2.2.6",
+    "concurrently": "^4.1.2",
+    "cross-env": "^6.0.0",
     "devtron": "^1.4.0",
-    "nodemon": "^1.19.2"
+    "electron": "^6.0.10",
+    "electron-builder": "^22.1.0",
+    "electron-is-dev": "^1.1.0",
+    "node-sass": "^4.12.0",
+    "nodemon": "^1.19.2",
+    "qiniu": "^7.2.2",
+    "react": "^16.9.0",
+    "react-dom": "^16.9.0",
+    "react-scripts": "3.1.2",
+    "react-simplemde-editor": "^4.1.0",
+    "wait-on": "^3.3.0",
+    "webpack-cli": "^3.3.9"
   }
 }
